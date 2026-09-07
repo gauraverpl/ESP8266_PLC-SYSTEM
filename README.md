@@ -1,6 +1,24 @@
 # ESP8266_PLC-SYSTEM
 This project transforms an ESP8266 (NodeMCU) into a compact, low-cost Programmable Logic Controller (PLC) equipped with wireless monitoring and control capabilities.small-scale industrial control, and IoT applications, this system bridges traditional ladder logic execution with modern web-based telemetry.  By leveraging OpenPLC Runtime ..
 
+# Example Automation
+
+For example:
+
+Relay 1: Water pump
+Relay 2: Cooling fan
+Relay 3: Motor
+Relay 4: Auxiliary load
+
+If the ultrasonic sensor detects a low water level, the ESP8266 can turn Relay 1 ON.
+
+If the temperature becomes higher than the programmed limit, Relay 2 can turn ON to operate a cooling fan.
+
+If a preset timer reaches zero, the corresponding relay can automatically turn OFF, and the buzzer can sound.
+
+This makes the system similar to a small programmable industrial PLC, while using ESP8266 as the controller.
+
+
 # COMPONNET LIST 
 
 🌡️ Temperature sensor
