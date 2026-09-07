@@ -1,0 +1,269 @@
+#define BLYNK_TEMPLATE_ID "********"
+#define BLYNK_TEMPLATE_NAME "PLC SYSTEM"
+#define BLYNK_AUTH_TOKEN "********VL8P6lPXF6n_y"
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <DHT.h>
+#include <RTClib.h>
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+
+// --- PIN MAPPING ---A
+#define IR_PIN        D0    
+#define DHT_PIN       D4  
+#define DHT_TYPE      DHT11
+
+#define RELAY1_PIN    D5    
+#define RELAY2_PIN    D6    
+#define RELAY3_PIN    1     
+#define RELAY4_PIN    3     
+
+#define BTN_UP_PIN    D3    
+#define BTN_SET_PIN   D7    
+#define BTN_DOWN_PIN  A0    
+#define BUZZER_PIN    D8    
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+DHT dht(DHT_PIN, DHT_TYPE);
+RTC_DS3231 rtc;
+BlynkTimer timer;
+
+float temp = 0, hum = 0, level = 0; 
+float setTemp = 30.0, setHum = 50.0;
+int setH = 0, setM = 0, setupStep = 1; 
+unsigned long targetMillis = 0;
+bool countdownStarted = false;
+unsigned long alertTimer = 0, lastPageSwap = 0;
+bool isAlerting = false, lastUp = HIGH, lastSet = HIGH, lastDown = HIGH;
+int displayPage = 0;
+
+// Reversing Initial Track: Relays start ON (LOW)
+bool lastR1 = LOW, lastR2 = LOW, lastR3 = LOW, lastR4 = LOW;
+
+char ssid[] = "Airtel_gaur_7027";
+char pass[] = "air23780";
+
+void sendDataToBlynk() {
+  if (Blynk.connected()) {
+    Blynk.virtualWrite(V1, temp);
+    Blynk.virtualWrite(V2, hum);
+    Blynk.virtualWrite(V3, level);
+  }
+}
+
+void setup() {
+  pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, HIGH); 
+  pinMode(BTN_UP_PIN, INPUT_PULLUP);
+  pinMode(BTN_SET_PIN, INPUT_PULLUP);
+  pinMode(IR_PIN, INPUT_PULLUP);
+  
+  pinMode(RELAY1_PIN, OUTPUT); pinMode(RELAY2_PIN, OUTPUT);
+  pinMode(RELAY3_PIN, OUTPUT); pinMode(RELAY4_PIN, OUTPUT);
+
+  // --- REVERSED: START IN ON STATE (LOW) ---
+  digitalWrite(RELAY1_PIN, LOW); digitalWrite(RELAY2_PIN, LOW);
+  digitalWrite(RELAY3_PIN, LOW); digitalWrite(RELAY4_PIN, LOW);
+
+  Wire.begin(D2, D1); 
+  lcd.begin(); lcd.backlight();
+  
+  lcd.setCursor(0, 0); lcd.print(" WELCOME TO OUR ");
+  lcd.setCursor(0, 1); lcd.print(" PLC M/C SYSTEM ");
+  delay(3000);
+  lcd.clear();
+
+  lcd.setCursor(0, 0); lcd.print("GAURAV CHAUDHARY");
+  lcd.setCursor(0, 1); lcd.print(" B.TECH - ECE ");
+  delay(3000);
+  lcd.clear();
+
+  lcd.print("Connecting WiFi");
+  WiFi.begin(ssid, pass);
+  int retry = 0;
+  while (WiFi.status() != WL_CONNECTED && retry < 20) {
+    delay(500);
+    lcd.setCursor(retry % 16, 1); lcd.print(".");
+    retry++;
+  }
+
+  Blynk.config(BLYNK_AUTH_TOKEN);
+  dht.begin(); 
+  
+  if (!rtc.begin()) {
+    lcd.clear(); lcd.print("RTC Not Found!");
+  } else {
+    // Current Date: April 2, 2026
+    rtc.adjust(DateTime(2026, 4, 2, 23, 44, 0)); 
+  }
+
+  timer.setInterval(3000L, sendDataToBlynk); 
+  lcd.clear();
+}
+
+void loop() {
+  Blynk.run();
+  timer.run();
+  
+  if (setupStep < 5) { 
+    handleMenu(); 
+    return; 
+  }
+
+  if (setupStep == 5 && !countdownStarted) {
+    targetMillis = millis() + ((setH * 3600ULL) + (setM * 60ULL)) * 1000ULL;
+    countdownStarted = true;
+    lcd.clear();
+  }
+
+  // --- BUZZER TIMER LOGIC (Reduced to 2 Seconds) ---
+  if (isAlerting) {
+    digitalWrite(BUZZER_PIN, LOW); 
+    if (millis() - alertTimer >= 2000) { 
+      digitalWrite(BUZZER_PIN, HIGH); 
+      isAlerting = false; 
+    }
+  }
+
+  readSensors();
+  checkConditions();
+  checkRelayChanges(); 
+  updateDisplay();
+}
+
+void readSensors() {
+  static unsigned long lastDHTRead = 0;
+  if (millis() - lastDHTRead > 2000) {
+    float t = dht.readTemperature();
+    float h = dht.readHumidity();
+    if (!isnan(t)) temp = t; 
+    if (!isnan(h)) hum = h;
+    lastDHTRead = millis();
+  }
+  level = (digitalRead(IR_PIN) == LOW) ? 100 : 0;
+}
+
+void checkConditions() {
+  // Logic remains: Turns OFF (HIGH) if limit exceeded
+  digitalWrite(RELAY1_PIN, (temp > setTemp) ? HIGH : LOW);
+  digitalWrite(RELAY2_PIN, (hum > setHum) ? HIGH : LOW);
+
+  if (countdownStarted) {
+    if (millis() >= targetMillis) digitalWrite(RELAY3_PIN, HIGH); 
+    else digitalWrite(RELAY3_PIN, LOW);
+  }
+
+  if (level == 0) {
+    digitalWrite(RELAY4_PIN, HIGH); // Turn OFF if empty
+  } else {
+    digitalWrite(RELAY4_PIN, LOW);  // Keep ON if full
+  }
+}
+
+void checkRelayChanges() {
+  bool currentR1 = digitalRead(RELAY1_PIN);
+  bool currentR2 = digitalRead(RELAY2_PIN);
+  bool currentR3 = digitalRead(RELAY3_PIN);
+  bool currentR4 = digitalRead(RELAY4_PIN);
+
+  // Trigger if any relay goes from ON (LOW) to OFF (HIGH)
+  if ((currentR1 == HIGH && lastR1 == LOW) || 
+      (currentR2 == HIGH && lastR2 == LOW) || 
+      (currentR3 == HIGH && lastR3 == LOW) || 
+      (currentR4 == HIGH && lastR4 == LOW)) {
+    
+    if (!isAlerting) {
+      isAlerting = true;
+      alertTimer = millis();
+    }
+  }
+
+  lastR1 = currentR1; lastR2 = currentR2;
+  lastR3 = currentR3; lastR4 = currentR4;
+}
+
+void handleMenu() {
+  bool currUp = (digitalRead(BTN_UP_PIN) == LOW);
+  bool currSet = (digitalRead(BTN_SET_PIN) == LOW);
+  int aVal = analogRead(BTN_DOWN_PIN);
+  bool currDown = (aVal < 50); 
+
+  lcd.setCursor(0, 0);
+  if (setupStep == 1) {
+    lcd.print("SET TEMP LIMIT  "); lcd.setCursor(0, 1);
+    lcd.print("VAL: "); lcd.print(setTemp, 0); lcd.print(" C    ");
+    if (currUp && lastUp == HIGH) setTemp++; 
+    if (currDown && lastDown == HIGH) setTemp--;
+  } 
+  else if (setupStep == 2) {
+    lcd.print("SET HUMID LIMIT "); lcd.setCursor(0, 1);
+    lcd.print("VAL: "); lcd.print(setHum, 0); lcd.print(" %    ");
+    if (currUp && lastUp == HIGH) setHum += 5; 
+    if (currDown && lastDown == HIGH) setHum -= 5;
+  }
+  else if (setupStep == 3) {
+    lcd.print("SET DELAY HOUR  "); lcd.setCursor(0, 1);
+    lcd.print(" HOURS: "); lcd.print(setH); lcd.print("       ");
+    if (currUp && lastUp == HIGH) setH++; 
+    if (currDown && lastDown == HIGH && setH > 0) setH--;
+  }
+  else if (setupStep == 4) {
+    lcd.print("SET DELAY MIN   "); lcd.setCursor(0, 1);
+    lcd.print(" MINS: "); lcd.print(setM); lcd.print("        ");
+    if (currUp && lastUp == HIGH) setM++; 
+    if (currDown && lastDown == HIGH && setM > 0) setM--;
+  }
+
+  if (currSet && lastSet == HIGH) { 
+    setupStep++; 
+    lcd.clear(); 
+    delay(300); 
+  }
+  
+  lastUp = currUp; lastSet = currSet; lastDown = currDown;
+  delay(100); 
+}
+
+void updateDisplay() {
+  if (millis() - lastPageSwap > 4000) {
+    displayPage = (displayPage + 1) % 4; 
+    lastPageSwap = millis();
+    lcd.clear();
+  }
+  
+  DateTime now = rtc.now();
+  lcd.setCursor(0, 0);
+
+  if (displayPage == 0) { 
+    lcd.print("T:"); lcd.print(temp, 1); lcd.print("C H:"); lcd.print(hum, 0); lcd.print("%");
+    lcd.setCursor(0, 1);
+    lcd.print("L:"); lcd.print(level == 100 ? "100%" : "NILL ");
+    lcd.print(Blynk.connected() ? " B:ON" : " B:OFF"); 
+  } 
+  else if (displayPage == 1) { 
+    lcd.print("R1:"); lcd.print(digitalRead(RELAY1_PIN)?"OFF":"ON ");
+    lcd.print(" R2:"); lcd.print(digitalRead(RELAY2_PIN)?"OFF":"ON ");
+    lcd.setCursor(0, 1);
+    lcd.print("R3:"); lcd.print(digitalRead(RELAY3_PIN)?"OFF":"ON ");
+    lcd.print(" R4:"); lcd.print(digitalRead(RELAY4_PIN)?"OFF":"ON ");
+  }
+  else if (displayPage == 2) { 
+    lcd.print("PLC STOPWATCH:  "); 
+    lcd.setCursor(0, 1);
+    if (millis() < targetMillis) {
+        unsigned long diff = (targetMillis - millis()) / 1000;
+        int rh = diff / 3600; int rm = (diff % 3600) / 60; int rs = diff % 60;
+        lcd.print(rh); lcd.print("h:"); lcd.print(rm); lcd.print("m:"); lcd.print(rs); lcd.print("s ");
+    } else {
+        lcd.print(" TIMER EXPIRED! ");
+    }
+  }
+  else if (displayPage == 3) { 
+    lcd.print("DT: "); lcd.print(now.day()); lcd.print("/"); lcd.print(now.month()); lcd.print("/"); lcd.print(now.year());
+    lcd.setCursor(0, 1);
+    lcd.print("TIME: "); 
+    if(now.hour()<10) lcd.print("0"); lcd.print(now.hour()); lcd.print(":");
+    if(now.minute()<10) lcd.print("0"); lcd.print(now.minute());
+    if(now.second()<10) lcd.print(":0"); else lcd.print(":"); lcd.print(now.second());
+  }
+}
