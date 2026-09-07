@@ -18,3 +18,21 @@ This project transforms an ESP8266 (NodeMCU) into a compact, low-cost Programmab
 🎛️ Local control/status display
 
 ⚙️ Automatic ON/OFF logic
+
+
+
+
+| Component          | Name                           | Purpose                                           |
+| ------------------ | ------------------------------ | ------------------------------------------------- |
+| Controller         | **ESP8266 NodeMCU / WROOM-02** | Main PLC controller                               |
+| Temperature sensor | **DS18B20**                    | Measures temperature                              |
+| Ultrasonic sensor  | **HC-SR04**                    | Measures tank/object distance                     |
+| Display            | **16×2 LCD**                   | Displays temperature, level, timer & relay status |
+| Timer/RTC          | **DS3231 RTC**                 | Accurate real-time timer                          |
+| Relay 1            | **Relay Module CH1**           | Load/device 1                                     |
+| Relay 2            | **Relay Module CH2**           | Load/device 2                                     |
+| Relay 3            | **Relay Module CH3**           | Load/device 3                                     |
+| Relay 4            | **Relay Module CH4**           | Load/device 4                                     |
+| Alarm              | **5V Buzzer**                  | Alarm/notification                                |
+| Power              | **5V regulated supply**        | ESP8266 + modules                                 |
+
