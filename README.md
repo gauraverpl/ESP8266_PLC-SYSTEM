@@ -1,6 +1,12 @@
 # ESP8266_PLC-SYSTEM
 This project transforms an ESP8266 (NodeMCU) into a compact, low-cost Programmable Logic Controller (PLC) equipped with wireless monitoring and control capabilities.small-scale industrial control, and IoT applications, this system bridges traditional ladder logic execution with modern web-based telemetry.  By leveraging OpenPLC Runtime ..
 
+The ESP8266 PLC System is a microcontroller-based automation system designed to control four electrical loads automatically according to temperature, ultrasonic level, and preset timing conditions.
+
+The ESP8266 acts as the main PLC controller. The DHT11 temperature sensor continuously measures temperature, while the HC-SR04 ultrasonic sensor measures the distance/level of the material or liquid.
+
+A timer/RTC system allows the user to operate a relay for a specific period. The four-channel relay module provides independent control of four devices such as a pump, fan, motor, light, or other electrical loads.
+
 # Example Automation
 
 For example:
