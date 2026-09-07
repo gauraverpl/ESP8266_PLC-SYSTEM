@@ -4,10 +4,17 @@ This project transforms an ESP8266 (NodeMCU) into a compact, low-cost Programmab
 # COMPONNET LIST 
 
 🌡️ Temperature sensor
+
 📏 Ultrasonic sensor for level/distance
+
 ⏱️ Timer control
+
 🔔 Buzzer
+
 🔌 4-channel relay
+
 📟 16×2 LCD
+
 🎛️ Local control/status display
+
 ⚙️ Automatic ON/OFF logic
